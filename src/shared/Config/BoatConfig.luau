@@ -54,7 +54,7 @@ local function part(
 		durabilityBonus = durability,
 		storageBonus = storage,
 		noise = noise,
-		craftCost = { ["mat_timber"] = 4 * tier, ["mat_scrap"] = 2 * tier },
+		craftCost = { ["timber_softwood"] = 4 * tier, ["stone_rubble"] = 2 * tier },
 		description = description,
 	}
 end

@@ -218,6 +218,8 @@ Enums.StatusEffect = {
 }
 
 Enums.CombatState = {
+	Alive = "Alive",
+	Downed = "Downed",
 	Idle = "Idle",
 	Firing = "Firing",
 	Reloading = "Reloading",
@@ -526,6 +528,7 @@ Enums.ClanWarState = {
 
 Enums.WorldEventState = {
 	Inactive = "Inactive",
+	Aborted = "Aborted",
 	Announced = "Announced",
 	Active = "Active",
 	Completing = "Completing",
@@ -564,6 +567,41 @@ Enums.GraphicsPreset = {
 	Ultra = "Ultra",
 }
 Enums.GraphicsPresetOrder = { "Auto", "VeryLow", "Low", "Medium", "High", "Ultra" }
+
+Enums.AudioEvent = {
+	Ambience = "Ambience",
+	Footstep = "Footstep",
+	Jump = "Jump",
+	Land = "Land",
+	Glide = "Glide",
+	WeaponFire = "WeaponFire",
+	WeaponReload = "WeaponReload",
+	WeaponSwitch = "WeaponSwitch",
+	MeleeSwing = "MeleeSwing",
+	Impact = "Impact",
+	Explosion = "Explosion",
+	AbilityCast = "AbilityCast",
+	GadgetUse = "GadgetUse",
+	UltimateCharge = "UltimateCharge",
+	UltimateFire = "UltimateFire",
+	Harvest = "Harvest",
+	Craft = "Craft",
+	LevelUp = "LevelUp",
+	Loot = "Loot",
+	DamageTaken = "DamageTaken",
+	Downed = "Downed",
+	Revive = "Revive",
+	UiClick = "UiClick",
+	UiOpen = "UiOpen",
+	UiClose = "UiClose",
+	Notification = "Notification",
+	BossIntro = "BossIntro",
+	BossPhase = "BossPhase",
+	BossDefeat = "BossDefeat",
+	CompanionCall = "CompanionCall",
+	VehicleEngine = "VehicleEngine",
+	BoatEngine = "BoatEngine",
+}
 
 Enums.AudioCategory = {
 	Master = "Master",

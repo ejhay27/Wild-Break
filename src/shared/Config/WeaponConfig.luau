@@ -141,7 +141,7 @@ function Weapon.ComputeStats(
 
 	if attachments then
 		for slot, attachmentId in attachments do
-			local attachment = AttachmentConfig.Get(attachmentId)
+			local attachment = AttachmentConfig:Get(attachmentId)
 			if attachment then
 				for statName in MODIFIABLE_STATS do
 					local additive = attachment.add and attachment.add[statName] or 0

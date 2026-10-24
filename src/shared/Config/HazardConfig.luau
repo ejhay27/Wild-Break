@@ -30,8 +30,8 @@ export type HazardDef = {
 }
 
 local entries: { [string]: HazardDef } = {
-	["heat"] = {
-		id = "heat",
+	["Heat"] = {
+		id = "Heat",
 		displayName = "Extreme Heat",
 		kind = Enums.HazardType.Heat,
 		regions = { Enums.RegionId.Cinderfall },
@@ -45,8 +45,8 @@ local entries: { [string]: HazardDef } = {
 		audioWarning = "hazard_heat_warning",
 		description = "Environmental heat in Cinderfall. Mitigated by thermal equipment and salves.",
 	},
-	["cold"] = {
-		id = "cold",
+	["Cold"] = {
+		id = "Cold",
 		displayName = "Extreme Cold",
 		kind = Enums.HazardType.Cold,
 		regions = { Enums.RegionId.Frostveil },
@@ -60,8 +60,8 @@ local entries: { [string]: HazardDef } = {
 		audioWarning = "hazard_cold_warning",
 		description = "Environmental cold in Frostveil. Mitigated by cold equipment and salves.",
 	},
-	["contamination"] = {
-		id = "contamination",
+	["Contamination"] = {
+		id = "Contamination",
 		displayName = "Contamination",
 		kind = Enums.HazardType.Contamination,
 		regions = { Enums.RegionId.UmbraExpanse },
@@ -75,8 +75,8 @@ local entries: { [string]: HazardDef } = {
 		audioWarning = "hazard_contamination_warning",
 		description = "Contaminated areas inside Umbra Expanse.",
 	},
-	["void_anomaly"] = {
-		id = "void_anomaly",
+	["VoidAnomaly"] = {
+		id = "VoidAnomaly",
 		displayName = "Void Anomaly",
 		kind = Enums.HazardType.VoidAnomaly,
 		regions = { Enums.RegionId.NullHorizon },
@@ -90,8 +90,8 @@ local entries: { [string]: HazardDef } = {
 		audioWarning = "hazard_void_warning",
 		description = "Reality anomalies that damage and destabilise unprotected hunters.",
 	},
-	["underwater_pressure"] = {
-		id = "underwater_pressure",
+	["UnderwaterPressure"] = {
+		id = "UnderwaterPressure",
 		displayName = "Underwater Pressure",
 		kind = Enums.HazardType.UnderwaterPressure,
 		regions = { Enums.RegionId.PelagicFrontier },
@@ -104,8 +104,8 @@ local entries: { [string]: HazardDef } = {
 		audioWarning = "hazard_oxygen_warning",
 		description = "Oxygen drain while diving. Extended by dive gear and canisters.",
 	},
-	["volcanic"] = {
-		id = "volcanic",
+	["Volcanic"] = {
+		id = "Volcanic",
 		displayName = "Volcanic Activity",
 		kind = Enums.HazardType.Volcanic,
 		regions = { Enums.RegionId.Cinderfall },
@@ -119,8 +119,8 @@ local entries: { [string]: HazardDef } = {
 		audioWarning = "hazard_volcanic_warning",
 		description = "Lava channels, fountains and eruption zones.",
 	},
-	["storm"] = {
-		id = "storm",
+	["Storm"] = {
+		id = "Storm",
 		displayName = "Storm",
 		kind = Enums.HazardType.Storm,
 		regions = { Enums.RegionId.Frostveil, Enums.RegionId.PelagicFrontier },
@@ -134,8 +134,8 @@ local entries: { [string]: HazardDef } = {
 		audioWarning = "hazard_storm_warning",
 		description = "Blizzards and sea storms that reduce visibility and chill hunters.",
 	},
-	["fall_damage"] = {
-		id = "fall_damage",
+	["Fall"] = {
+		id = "Fall",
 		displayName = "Fall Damage",
 		kind = Enums.HazardType.Fall,
 		regions = Enums.RegionOrder,

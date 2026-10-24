@@ -35,6 +35,9 @@ Limits.Combat = {
 	HeadshotMultiplier = 2.0,
 	WeakPointMultiplier = 1.75,
 	ArmorDamageMultiplier = 0.55,
+	-- Area damage is deliberately weaker per target than a direct hit.
+	AreaDamageMultiplier = 0.75,
+	ArmorConstant = 220,
 	ShieldDamageMultiplier = 1.0,
 	CritChanceBase = 0.05,
 	CritMultiplier = 1.5,
@@ -86,6 +89,10 @@ Limits.Gadget = {
 
 -- Inventory ----------------------------------------------------------------
 Limits.Inventory = {
+	DefaultSlots = 60,
+	MaxSlots = 200,
+	DefaultStashSlots = 80,
+	MaxStashSlots = 240,
 	MaxDistinctStacks = 400,
 	DefaultStackSize = 999,
 	OreStackSize = 999,
@@ -109,6 +116,9 @@ Limits.Persistence = {
 
 -- Networking ---------------------------------------------------------------
 Limits.Networking = {
+	DefaultRatePerSecond = 30,
+	ViolationsBeforeKick = 12,
+	MaxUnscheduledArguments = 8,
 	MaxRequestsPerSecond = 30,
 	BurstAllowance = 12,
 	MaxPayloadArguments = 12,
@@ -136,6 +146,7 @@ Limits.Companion = {
 	MaxLevel = 60,
 	FollowDistanceStuds = 8,
 	CombatLeashStuds = 90,
+	TameHealthThreshold = 0.3,
 	TameMinSeconds = 6,
 	TameMaxSeconds = 20,
 	SimplifiedBehaviourDistanceStuds = 220,
@@ -146,6 +157,7 @@ Limits.Boss = {
 	RespawnSeconds = 600, -- ten minute open-world boss reset
 	DungeonBossRespawnSeconds = 600,
 	EncounterTimeoutSeconds = 1800,
+	AbandonResetSeconds = 120,
 	MaxParticipants = 32,
 	ParticipationDamageShareRequired = 0.02,
 	MinParticipantsForRewardScaling = 1,
@@ -285,6 +297,7 @@ Limits.Performance = {
 	AutoAdjustDownThreshold = 42,
 	AutoAdjustUpThreshold = 57,
 	MaxActiveBeastsPerRegion = 60,
+	MaxActiveNodesPerRegion = 400,
 	BeastSimRadiusStuds = 420,
 	MaxParticlesPerEffect = 220,
 	EffectCleanupIntervalSeconds = 2,
@@ -296,6 +309,7 @@ Limits.Performance = {
 Limits.Survival = {
 	MaxHealth = 100,
 	BaseHealthRegenPerSecond = 0,
+	HealthRegenDelaySeconds = 6,
 	ExpeditionLossRatio = 0.15, -- light, configurable penalty on unbanked resources
 	ExpeditionLossMaxStacks = 8,
 	RespawnDelaySeconds = 5,
@@ -321,6 +335,12 @@ Limits.Audio = {
 	MaxSoundsPerEmitter = 4,
 	DefaultRollOffMaxDistance = 220,
 	MinRetriggerSeconds = 0.04,
+}
+
+Limits.Squad = {
+	MaxSize = 4,
+	InviteTimeoutSeconds = 60,
+	LeaderReassignOnLeave = true,
 }
 
 return Limits

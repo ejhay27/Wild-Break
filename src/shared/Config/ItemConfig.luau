@@ -115,6 +115,8 @@ local entries: { [string]: ItemDef } = {
 	-- -------------------------------------------------------------------------
 	-- Beast / boss materials
 	-- -------------------------------------------------------------------------
+	["upgrade_star_legendary"] = item({ id = "upgrade_star_legendary", displayName = "Legendary Star Upgrade", itemType = Enums.ItemType.Consumable, rarity = Enums.Rarity.Legendary, stackSize = 1, description = "Spent at the Gunsmith to raise a weapon to six stars." }),
+	["upgrade_star_mythical"] = item({ id = "upgrade_star_mythical", displayName = "Mythical Star Upgrade", itemType = Enums.ItemType.Consumable, rarity = Enums.Rarity.Mythical, stackSize = 1, description = "Spent at the Gunsmith to raise a weapon to eight stars." }),
 	["mat_thornmaw_bark"] = item({ id = "mat_thornmaw_bark", displayName = "Thornmaw Bark", itemType = Enums.ItemType.BossMaterial, rarity = Enums.Rarity.Legendary, description = "Mineralised bark from Thornmaw.", tags = { "Boss:thornmaw" } }),
 	["mat_pyraxis_scale"] = item({ id = "mat_pyraxis_scale", displayName = "Pyraxis Scale", itemType = Enums.ItemType.BossMaterial, rarity = Enums.Rarity.Legendary, description = "Eclipse-warmed scale from Pyr axis.", tags = { "Boss:pyraxis" } }),
 	["mat_glacieron_core"] = item({ id = "mat_glacieron_core", displayName = "Glacieron Core Shard", itemType = Enums.ItemType.BossMaterial, rarity = Enums.Rarity.Legendary, description = "Frozen core fragment from Glacieron.", tags = { "Boss:glacieron" } }),

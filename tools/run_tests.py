@@ -185,7 +185,8 @@ def lint_dot_calls() -> list[str]:
         receivers = set(NEW_RE.findall(text))
         for name, target in REQUIRE_RE2.findall(text):
             target = target.strip().strip('"').strip("'")
-            base = target.rsplit("/", 1)[-1].rstrip('"')
+            # handles `script.Parent.AttachmentConfig` and `@shared/Config/BossConfig`
+            base = re.split(r"[/\\.]", target)[-1]
             if base in reg_modules:
                 receivers.add(name)
         if not receivers:
