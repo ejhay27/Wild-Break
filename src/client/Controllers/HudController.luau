@@ -18,6 +18,7 @@ local Logger = require(Shared.Utilities.Logger)
 local Hud = require(UI.Hud)
 local Screens = require(UI.Screens)
 local Effects = require(script.Parent.Parent.Effects.EffectPool)
+local MobileControls = require(script.Parent.Parent.Input.MobileControls)
 
 local HudController = { Name = "HudController" }
 
@@ -103,6 +104,20 @@ function HudController.Start()
 	local gui = player:WaitForChild("PlayerGui")
 	refs = Hud.Build(gui, controllers.InputController.IsTouch())
 	screens = Screens.Build(refs.Root, controllers)
+
+	-- The touch layer was being built but never bound, so on a phone the
+	-- sticks and action buttons were inert. It routes through the same named
+	-- actions the keyboard uses, so combat code is identical on both.
+	if refs.Mobile then
+		MobileControls.Bind(refs.Mobile, {
+			onAxis = function(look: Vector2, move: Vector2)
+				controllers.InputController.SetTouchAxis(look, move)
+			end,
+			onAction = function(action: string, down: boolean)
+				controllers.InputController.TouchAction(action, down)
+			end,
+		})
+	end
 
 	local Network = controllers.NetworkController
 	local State = controllers.StateController

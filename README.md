@@ -67,7 +67,8 @@ Design pillars that shape the code:
 ├── src/
 │   ├── boot/                 entry points (server and client)
 │   ├── server/               SERVER ONLY -> ServerScriptService
-│   │   └── Services/         22 gameplay services
+│   │   ├── Services/         23 gameplay services
+│   │   └── World/            world generation (ActorFactory, WorldBuilder)
 │   ├── client/               CLIENT ONLY -> StarterPlayerScripts
 │   │   ├── Controllers/      13 controllers
 │   │   ├── Effects/          pooled visual effects
@@ -152,6 +153,66 @@ Boss rules live in a **pure, deterministic state machine** at
 `src/shared/Combat/BossEncounter.luau`. It has no Roblox globals, so the whole
 encounter can be driven headlessly. `BossService` owns the actors and applies
 the events the machine emits.
+
+**How a world boss actually starts** — `WorldService` measures every player's
+position each tick. When a player comes within 1.25x the arena radius of a
+region's arena, it calls `BossService.StartWorldBoss(regionId)`, which spawns
+the boss actor at that arena and registers it with `CombatService`. The call is
+idempotent: an already-live boss returns the existing encounter, so a crowded
+arena cannot spawn a second one.
+
+**Distance is measured, never assumed.** A participant the server has not
+located is flagged `positionKnown = false` and their distance is set *far away*,
+not to zero. Zero means "standing on the boss", which would silently place that
+player inside every attack radius. Unmeasured participants are simply not hit by
+the blast.
+
+---
+
+## The playable world
+
+The world is **generated at server start** by `src/server/World/WorldBuilder.luau`
+from `RegionConfig`. There are no hand-placed parts and no `.rbxl` scene file:
+running the game builds the world.
+
+`SpawnService.Init` claims and builds it exactly once, before any player joins.
+
+**Haven Overlook (the hub, at the world origin)**
+
+- A raised plate with a rock rim so nobody walks off the edge.
+- A `SpawnLocation` plus four deployment pads.
+- The Hall of Haven and its spire as the visual landmark.
+- A safe zone: no hostile spawns, and every respawn returns here.
+
+**The seven regions**
+
+Each one gets a grounded landmass at its configured centre and radius, a raised
+rim, a three-tower landmark with a lit beacon, scattered foliage, an **arena**
+placed 55% of the way out along the axis facing away from the hub, and its own
+lighting and atmosphere (fog, ambient, clock time, sky colour) applied when the
+region becomes the busiest.
+
+| Region | Centre (studs) | Radius | Boss |
+|---|---:|---:|---|
+| Verdant Reach | 0, 40, 0 | 1800 | Thornmaw |
+| Cinderfall | 3600, 30, 0 | 1500 | **Pyr axis** |
+| Frostveil | 0, 25, -3700 | 1500 | Glacieron |
+| Umbra Expanse | -3800, 25, 0 | 1400 | Noctyra |
+| Solara Basin | 0, 35, 3800 | 1400 | **Aurion, the Sunheart Colossus** |
+| Pelagic Frontier | 3400, 10, 3400 | 1600 | Abyssalith |
+| Null Horizon | -3600, 60, 3700 | 1300 | Parallax, the Unmade |
+
+**Traversal** — a raised causeway connects Haven Overlook to every region, so
+the whole world is reachable on foot without deploying. Falling out of the world
+is detected (below y = -600) and the player is returned to the hub.
+
+**Actors** — `ActorFactory.luau` builds everything that lives in the world:
+bosses (with a Humanoid and an aimable `CoreSocket` weak point), beasts,
+resource nodes, pickups and trigger volumes, into `WB_Bosses`, `WB_Beasts`,
+`WB_Nodes`, `WB_Pickups` and `WB_Triggers` under `workspace`.
+
+Everything here is procedural geometry standing in for real art. The shapes are
+deliberate placeholders — see [Assets outstanding](#assets-outstanding).
 
 ---
 
@@ -271,14 +332,14 @@ The Luau CLI is not bundled. Build it with:
 
 | Spec | Assertions | Result |
 |---|---:|---|
-| `architecture_spec` | 20 | pass |
-| `boss_encounter_spec` | 31 | pass |
+| `architecture_spec` | 21 | pass |
+| `boss_encounter_spec` | 36 | pass |
 | `config_spec` | 48 | pass |
 | `data_integrity_spec` | 12 | pass |
 | `runtime_spec` | 19 | pass |
 | `social_spec` | 35 | pass |
 | `symbols_spec` | 3 | pass |
-| **Total** | **168** | **0 failures, 0 skipped** |
+| **Total** | **174** | **0 failures, 0 skipped** |
 
 Counts are per-spec. (The harness previously shared counters across specs, so
 every spec after the first reported its own total plus all previous ones — this
@@ -438,7 +499,7 @@ reset — no defeat, no rewards, no way to finish the fight.
 | # | Issue | Action |
 |---|---|---|
 | 1 | **No Roblox Studio playtest** | No engine in the dev environment. Work the [Studio test plan](#manual-roblox-studio-test-plan). |
-| 2 | **Rojo never executed** | Release downloads are blocked. Run `rojo build default.project.json -o WildBreak.rbxlx`. |
+| 2 | **Rojo never executed** | This sandbox may only reach `github.com`, `codeload.github.com`, `api.github.com`, `registry.npmjs.org`, `pypi.org` and `files.pythonhosted.org`. Rojo's release binaries are served from `release-assets.githubusercontent.com`, which is blocked, and no npm package ships a real `rojo` binary. So `rojo build default.project.json -o WildBreak.rbxlx` **cannot be run here** — it must be run on a machine with network access. What *was* verified instead: every `$path` target in `default.project.json` exists on disk, every `require` resolves, and no server-only module is reachable from a replicated container. |
 | 3 | **Strict typing unverified** | `luau-analyze` needs Roblox type definitions it cannot be given here. Re-run with a proper API dump. |
 | 4 | **`assets/` is empty** | Every model, animation and sound is a procedural placeholder. See below. |
 
@@ -455,15 +516,15 @@ reset — no defeat, no rewards, no way to finish the fight.
 
 ### Code gaps
 
-- `BossService` and `BeastService` spawn no physical actors yet — the encounter
-  logic is complete and tested, but there is nothing in the world to look at or
-  shoot until models exist.
-- `ResourceService` owns node state and respawn timers, but nodes are not placed
-  in a built world.
 - Dungeon interiors, the Elder Veyl operation and the Clan War place are not
   built. Clan War exists as a queue and roster only.
 - `Localization/` and `Definitions/` directories are referenced by the design
   but are not populated.
+- Deployment (the boat/glider redeploy flow) routes to the region you pick, but
+  the causeways already make every region walkable, so it is a convenience
+  rather than the only way in.
+- World events, hazards and the companion loop are implemented server-side and
+  tick, but they have had no playtesting at all.
 
 ---
 
@@ -475,15 +536,29 @@ These cannot be automated without a Roblox engine. Run them in this order.
 
 1. `rojo build default.project.json -o WildBreak.rbxlx`; open it. Check the
    Output window — there must be **no** red errors.
-2. Confirm the explorer tree: `ServerScriptService.Server.Services` (22 modules),
-   `ServerScriptService.WildbreakServerMain`, `ReplicatedStorage.Shared`,
-   `ReplicatedStorage.UI`, `StarterPlayerScripts.Client`,
-   `StarterPlayerScripts.WildbreakClientMain`,
+2. Confirm the explorer tree: `ServerScriptService.Server.Services` (23 modules),
+   `ServerScriptService.Server.World`, `ServerScriptService.WildbreakServerMain`,
+   `ReplicatedStorage.Shared`, `ReplicatedStorage.UI`,
+   `StarterPlayerScripts.Client`, `StarterPlayerScripts.WildbreakClientMain`,
    `StarterCharacterScripts.Character`.
 3. **Security check** — while playing, inspect `ReplicatedStorage` on a client.
    No `Server` folder, no service module, no DataStore code may be present.
 4. Press Play. `WILDBREAK server ready` then `WILDBREAK client ready` must both
    appear. The HUD renders and the profile request resolves.
+
+**The world**
+
+4a. The log must show `world ready: 8 regions`. Confirm `workspace.WB_World`
+    contains a hub plate, seven region plates, seven landmarks, seven arenas and
+    seven causeways.
+4b. Your character must appear **standing on Haven Overlook**, not falling and
+    not at the origin. Confirm the spawn pad, the rim and the Hall of Haven.
+4c. Walk to the edge of the hub. The rim must stop you; you must not fall into
+    the void.
+4d. Follow a causeway into a region. The fog, ambient light and clock time must
+    change as you cross in, and the HUD region label must update.
+4e. **Deliberately fall off the world.** Within ~1 second you must be returned
+    to Haven Overlook and the log must say so.
 
 **Core loop**
 
@@ -491,8 +566,9 @@ These cannot be automated without a Roblox engine. Run them in this order.
 6. Fire a weapon: server raycast, ammo decrements, hit markers appear. Verify
    ammo and reload are server-clocked (try rapid input — the server must not
    accept out-of-order reloads).
-7. Harvest a node. Confirm it depletes and returns after **exactly 180 seconds**
-   for an ordinary node.
+7. Approach a glowing node in any region, hold to harvest. Confirm it depletes
+   (visually too), that you cannot harvest one from more than 14 studs away, and
+   that it returns after **exactly 180 seconds** for an ordinary node.
 8. Take fall damage. Land from a glide — the grace window must absorb it.
 9. Open the inventory, craft an item, equip a weapon, attach a modification.
 10. Let a beast kill you. Confirm the downed state, revive, and respawn at
@@ -500,7 +576,10 @@ These cannot be automated without a Roblox engine. Run them in this order.
 
 **Bosses — Null Horizon (Parallax)**
 
-11. Start the encounter. Damage it through all four phases.
+11. Walk into the Null Horizon arena (south-west, past the Umbra Expanse
+    causeway). The boss must wake on its own — the log says
+    `players reached the Null Horizon arena, waking parallax`. Damage it through
+    all four phases.
 12. During phase 3, confirm it vanishes — and that it **always returns within
     6 seconds** at a valid position.
 13. Confirm damage lands in **every** phase, including while glitching.
@@ -508,7 +587,8 @@ These cannot be automated without a Roblox engine. Run them in this order.
 
 **Bosses — Light Region Samurai (Aurion)**
 
-15. Bring it to 5% HP. A 12-second telegraph countdown must appear.
+15. Walk into the Solara Basin arena (north). Aurion must wake on its own.
+    Bring it to 5% HP. A 12-second telegraph countdown must appear.
 16. Confirm it cannot be damaged during the finale.
 17. **Survive** the explosion (shield, heal, or stand outside 260 studs).
     The boss must die on its own with no further input.
@@ -536,12 +616,14 @@ These cannot be automated without a Roblox engine. Run them in this order.
 
 **Verified here (executed, results above)**
 
-- All 100 Luau modules compile (`luau-compile`, 0 failures).
+- All 112 Luau modules compile (`luau-compile`, 0 failures).
 - Every `$path` in `default.project.json` exists.
 - Every `require` across `src/` and `tests/` resolves to a real module.
 - No server-only module is reachable from a replicated container.
 - Static lints clean: registry dot-calls, undefined module roots.
-- 168 assertions across 7 specs — 0 failures, 0 skipped.
+- Every client-to-server remote declares an argument schema and a rate limit
+  (asserted by `architecture_spec`).
+- 174 assertions across 7 specs — 0 failures, 0 skipped.
 - Boss encounter behaviour: Parallax damageability, phase bounds, absence clamps,
   defeat reachability and single reward distribution; Light Samurai threshold,
   single detonation, survivor auto-defeat, wipe handling and duplicate-event
@@ -556,9 +638,10 @@ These cannot be automated without a Roblox engine. Run them in this order.
 - Every asset in [Assets outstanding](#assets-outstanding).
 
 **Summary:** the architecture is consistent, the dependencies resolve, the
-critical boss defects are fixed and covered by behavioural tests, and the
-project is ready for its first Studio playtest. It is **not** yet a playable
-game: the world has no geometry and there are no models, animations or sounds.
+critical boss defects are fixed and covered by behavioural tests, and the world
+is generated, populated and traversable. The project is ready for its first
+Studio playtest. It is **not** yet a finished game: every model, animation and
+sound is a placeholder, and not one frame of it has been run in the engine.
 
 ---
 
