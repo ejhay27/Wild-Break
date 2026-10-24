@@ -1,0 +1,8 @@
+# WILDBREAK toolchain.
+# Install:  aftman install      (https://github.com/LPGhatguy/aftman)
+# Then run: rojo build -o WILDBREAK.rbxl
+[tools]
+rojo = "rojo-rbx/rojo@7.7.1"
+selene = "Kampfkarren/selene@0.28.2"
+stylua = "JohnnyMorganz/StyLua@2.1.0"
+luau-lsp = "JohnnyMorganz/luau-lsp@1.39.0"

@@ -1,0 +1,19 @@
+std = "roblox+luau"
+
+[rules]
+# WILDBREAK is written in strict Luau. Roblox services and engine globals
+# come from the Roblox standard library definition, which selene resolves
+# through the "roblox" std above.
+unused_variable = "warn"
+incorrect_standard_library_use = "warn"
+roblox_incorrect_roact_usage = "allow"
+deprecated = "warn"
+mixed_table = "allow"
+multiple_statements = "allow"
+
+[config]
+empty_loop = "allow"
+
+[exclude]
+"build/**"
+"tests/harness/**"

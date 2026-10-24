@@ -1,0 +1,64 @@
+{
+  "name": "WILDBREAK",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Shared": { "$path": "src/shared" },
+      "UI": { "$path": "src/ui" },
+      "Remotes": { "$className": "Folder" }
+    },
+
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Server": { "$path": "src/server" },
+      "WildbreakServerMain": { "$path": "src/boot/ServerMain.server.luau" }
+    },
+
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$properties": {
+        "CharacterWalkSpeed": 16,
+        "CharacterJumpPower": 50,
+        "CharacterMaxSlopeAngle": 60,
+        "EnableMouseLockOption": true,
+        "LoadCharacterAppearance": "PlayerChoice",
+        "GameSettingsAvatarType": "R15",
+        "CameraMinZoomDistance": 2,
+        "CameraMaxZoomDistance": 22,
+        "CameraMode": "Classic",
+        "DevComputerCameraMovementMode": "UserChoice",
+        "DevTouchCameraMovementMode": "UserChoice"
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "Client": { "$path": "src/client" },
+        "WildbreakClientMain": { "$path": "src/boot/ClientMain.client.luau" }
+      },
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "Character": { "$path": "src/character" }
+      }
+    },
+
+    "ServerStorage": { "$className": "ServerStorage" },
+    "StarterGui": { "$className": "StarterGui", "$properties": { "ResetPlayerGuiOnSpawn": false, "ScreenOrientation": "Sensor" } },
+    "SoundService": { "$className": "SoundService", "$properties": { "RespectFilteringEnabled": true } },
+    "Lighting": { "$className": "Lighting" },
+    "MaterialService": { "$className": "MaterialService" },
+    "TextChatService": { "$className": "TextChatService" },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "StreamingEnabled": true,
+        "StreamingMinRadius": 64,
+        "StreamingTargetRadius": 512,
+        "StreamingPauseMode": "Default",
+        "Gravity": 196.2,
+        "FallenPartsDestroyHeight": -800,
+        "Terrain": { "Decoration": true }
+      }
+    }
+  }
+}
