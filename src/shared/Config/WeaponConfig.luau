@@ -11,6 +11,7 @@
 ]]
 
 local Enums = require(script.Parent.Parent.Constants.Enums)
+local Limits = require(script.Parent.Parent.Constants.Limits)
 local Registry = require(script.Parent.Registry)
 local Rarity = require(script.Parent.RarityConfig)
 local AttachmentConfig = require(script.Parent.AttachmentConfig)

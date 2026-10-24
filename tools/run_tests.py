@@ -252,14 +252,78 @@ def specs(filter_text: str | None) -> list[str]:
     return out
 
 
+
+# Globals that legitimately exist without a local declaration in this
+# codebase: the Roblox engine API and the runtime service locals that every
+# module opens with.
+KNOWN_ROOTS = {
+    "game", "script", "workspace", "Enum", "Instance", "table", "string",
+    "math", "os", "task", "coroutine", "debug", "utf8", "bit32",
+    "Vector3", "Vector2", "CFrame", "Color3", "UDim", "UDim2", "Rect",
+    "NumberRange", "NumberSequence", "TweenInfo", "BrickColor", "Axes",
+    "Faces", "RaycastParams", "OverlapParams", "DateTime", "Random",
+    "Players", "ReplicatedStorage", "ServerScriptService", "ServerStorage",
+    "StarterGui", "StarterPlayer", "StarterPack", "RunService",
+    "UserInputService", "ContextActionService", "GuiService", "Lighting",
+    "Debris", "Terrain", "SoundService", "MaterialService",
+    "TextChatService", "TweenService", "HttpService", "CollectionService",
+    "PhysicsService", "PathfindingService", "DataStoreService",
+    "MessagingService", "MemoryStoreService", "MarketplaceService",
+    "LocalizationService", "Stats", "Workspace",
+}
+
+ROOT_USE_RE = re.compile(r"(?<![\w.])([A-Z][A-Za-z0-9_]*)\.([A-Za-z_]\w*)")
+
+
+def lint_undefined_roots() -> list[str]:
+    """Catch `Foo.bar` where Foo was never required.
+
+    A missing `require` is invisible to the compiler and to every config
+    spec: the module still loads and still validates. It only blows up at
+    runtime, on the first code path that touches the missing symbol. This
+    lint found three such defects (WeaponConfig/Limits, AudioService/Remotes,
+    PerformanceService/Remotes), so it stays.
+    """
+    problems = []
+    for path in source_files():
+        with open(path, "r", encoding="utf-8") as fh:
+            text = fh.read()
+        body = re.sub(r"--\[\[.*?\]\]", "", text, flags=re.DOTALL)
+        body = "\n".join(
+            line for line in body.split("\n") if not line.lstrip().startswith("--")
+        )
+        # Strip string literals: a message such as "TooMuch.leftover" is
+        # prose, not a module reference.
+        body = re.sub(r'"[^"\n]*"', '""', body)
+        body = re.sub(r"'[^'\n]*'", "''", body)
+        declared = set(re.findall(r"\blocal\s+([A-Z][A-Za-z0-9_]*)\s*=", body))
+        declared |= set(re.findall(r"\bfunction\s+([A-Z][A-Za-z0-9_]*)", body))
+        declared |= set(
+            re.findall(r"\bfor\s+[A-Za-z_][\w\s,]*?\b([A-Z][A-Za-z0-9_]*)\s+in\b", body)
+        )
+        for lineno, line in enumerate(body.split("\n"), start=1):
+            if line.lstrip().startswith("--"):
+                continue
+            for match in ROOT_USE_RE.finditer(line):
+                name = match.group(1)
+                if name in KNOWN_ROOTS or name in declared:
+                    continue
+                problems.append(
+                    "%s:%d: %s.%s -- %s is not declared in this file (missing require?)"
+                    % (os.path.relpath(path, ROOT), lineno, name, match.group(2), name)
+                )
+    return problems
+
+
 def main() -> int:
     if not os.path.isfile(LUAU):
         print(f"luau CLI not found at {LUAU}; set LUAU_BIN", file=sys.stderr)
         return 2
-    problems = lint_dot_calls()
-    if problems:
-        print("registry dot-call lint:")
-        for problem in problems:
+    # Fast static lints run before anything is mirrored or executed.
+    lint_problems = lint_dot_calls() + lint_undefined_roots()
+    if lint_problems:
+        print("static lint:")
+        for problem in lint_problems:
             print("  " + problem)
         return 1
     mirror()

@@ -11,37 +11,42 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
+-- Shared modules are replicated (both sides need them). Server modules are
+-- NOT: they live under ServerScriptService so DataStore logic, admin
+-- authorisation and rate-limit internals never reach a client.
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Server = ReplicatedStorage:WaitForChild("Server")
+local Server = ServerScriptService:WaitForChild("Server")
+local Services = Server:WaitForChild("Services")
 
 local Logger = require(Shared.Utilities.Logger)
 
 -- Load order matters: dependencies first.
-local NetworkService = require(Server.Services.NetworkService)
-local DataService = require(Server.Services.DataService)
-local AdminService = require(Server.Services.AdminService)
-local ProgressionService = require(Server.Services.ProgressionService)
-local PlayerService = require(Server.Services.PlayerService)
-local InventoryService = require(Server.Services.InventoryService)
-local CombatService = require(Server.Services.CombatService)
-local ResourceService = require(Server.Services.ResourceService)
-local WorldService = require(Server.Services.WorldService)
-local BeastService = require(Server.Services.BeastService)
-local BossService = require(Server.Services.BossService)
-local DungeonService = require(Server.Services.DungeonService)
-local WorldEventService = require(Server.Services.WorldEventService)
-local CompanionService = require(Server.Services.CompanionService)
-local DeploymentService = require(Server.Services.DeploymentService)
-local HazardService = require(Server.Services.HazardService)
-local SquadService = require(Server.Services.SquadService)
-local ClanService = require(Server.Services.ClanService)
-local TradingService = require(Server.Services.TradingService)
-local BoatService = require(Server.Services.BoatService)
-local AudioService = require(Server.Services.AudioService)
-local PerformanceService = require(Server.Services.PerformanceService)
+local NetworkService = require(Services.NetworkService)
+local DataService = require(Services.DataService)
+local AdminService = require(Services.AdminService)
+local ProgressionService = require(Services.ProgressionService)
+local PlayerService = require(Services.PlayerService)
+local InventoryService = require(Services.InventoryService)
+local CombatService = require(Services.CombatService)
+local ResourceService = require(Services.ResourceService)
+local WorldService = require(Services.WorldService)
+local BeastService = require(Services.BeastService)
+local BossService = require(Services.BossService)
+local DungeonService = require(Services.DungeonService)
+local WorldEventService = require(Services.WorldEventService)
+local CompanionService = require(Services.CompanionService)
+local DeploymentService = require(Services.DeploymentService)
+local HazardService = require(Services.HazardService)
+local SquadService = require(Services.SquadService)
+local ClanService = require(Services.ClanService)
+local TradingService = require(Services.TradingService)
+local BoatService = require(Services.BoatService)
+local AudioService = require(Services.AudioService)
+local PerformanceService = require(Services.PerformanceService)
 
 local ServiceList = {
 	NetworkService,

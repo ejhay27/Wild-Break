@@ -13,6 +13,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
+local Remotes = require(Shared.Networking.Remotes)
 local Enums = require(Shared.Constants.Enums)
 local Logger = require(Shared.Utilities.Logger)
 local Audio = require(Shared.Config.AudioConfig)
@@ -47,7 +48,7 @@ function AudioService.Play(soundId: string, position: Vector3?, players: { Playe
 	end
 	local audience = players or game:GetService("Players"):GetPlayers()
 	for _, player in audience do
-		services.NetworkService.Fire(player, Remotes.PlayAudio.name, { soundId = soundId, position = position })
+		services.NetworkService.Fire(player, Remotes.PlaySound.name, { soundId = soundId, position = position })
 	end
 end
 
@@ -55,7 +56,7 @@ function AudioService.PlayForPlayer(player: Player, soundId: string)
 	if not Audio:Has(soundId) then
 		return
 	end
-	services.NetworkService.Fire(player, Remotes.PlayAudio.name, { soundId = soundId })
+	services.NetworkService.Fire(player, Remotes.PlaySound.name, { soundId = soundId })
 end
 
 -- Sets a player's music state, only when it actually changes.
@@ -101,7 +102,7 @@ function AudioService.PlayAmbience(player: Player, regionId: string)
 	end
 	-- Ambience is always paired with an event so it can be mixed properly.
 	AudioService.PlayForPlayer(player, region.ambienceId)
-	services.NetworkService.Fire(player, Remotes.PlayAudio.name, { event = Enums.AudioEvent.Ambience, regionId = regionId })
+	services.NetworkService.Fire(player, Remotes.PlaySound.name, { event = Enums.AudioEvent.Ambience, regionId = regionId })
 end
 
 return AudioService

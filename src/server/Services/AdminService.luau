@@ -37,8 +37,8 @@ function AdminService.Start(svc: any)
 		Extensions.LogAdminDisabled("AdminService")
 	end
 	local Network = services.NetworkService
-	if Remotes.AdminAction then
-		Network.On(Remotes.AdminAction.name, function(player, args)
+	if Remotes.AdminRequest then
+		Network.On(Remotes.AdminRequest.name, function(player, args)
 			return AdminService.Action(player, tostring(args[1]), args[2], tostring(args[3] or ""))
 		end)
 	end

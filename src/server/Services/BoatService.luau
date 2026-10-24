@@ -36,7 +36,7 @@ end
 
 function BoatService.Start(svc: any)
 	services = svc
-	services.NetworkService.On(Remotes.RequestBoat.name, function(player, args)
+	services.NetworkService.On(Remotes.BoatRequest.name, function(player, args)
 		return BoatService.Request(player, tostring(args[1]), tostring(args[2]))
 	end)
 end

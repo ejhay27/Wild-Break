@@ -476,6 +476,8 @@ Remotes.Dialogue = define("WB_Dialogue", "Function", "ClientToServer", "Dialogue
 Remotes.RegionDiscovered = define("WB_RegionDiscovered", "Event", "ServerToClient", "Region and landmark discovery notifications.")
 Remotes.DefeatSummary = define("WB_DefeatSummary", "Event", "ServerToClient", "Defeat summary including expedition resource loss.")
 Remotes.RewardSummary = define("WB_RewardSummary", "Event", "ServerToClient", "Reward distribution summary.")
+Remotes.MusicStateUpdated = define("WB_MusicStateUpdated", "Event", "ServerToClient", "Music state changes: exploration, combat, boss and menu layers.")
+Remotes.PerformanceStateUpdated = define("WB_PerformanceStateUpdated", "Event", "ServerToClient", "Server performance stage and the client budget it should apply.")
 
 -- ---------------------------------------------------------------------------
 -- Client -> server reporting
@@ -521,8 +523,12 @@ Remotes.AdminRequest = define(
 		adminLevel = Enums.AdminLevel.Tester,
 	}
 )
-Remotes.AdminStateUpdated = define("WB_AdminStateUpdated", "Event", "ServerToClient", "Admin panel data: server health, players, encounters, audit tail.")
-Remotes.AdminAuditEntry = define("WB_AdminAuditEntry", "Event", "ServerToClient", "Audit log entry broadcast to authorized panels.")
+Remotes.AdminStateUpdated = define("WB_AdminStateUpdated", "Event", "ServerToClient", "Admin panel data: server health, players, encounters, audit tail. Only sent to authorised operators.", {
+		adminLevel = Enums.AdminLevel.Tester,
+	})
+Remotes.AdminAuditEntry = define("WB_AdminAuditEntry", "Event", "ServerToClient", "Audit log entry broadcast to authorized panels. Only sent to authorised operators.", {
+		adminLevel = Enums.AdminLevel.Owner,
+	})
 
 -- ---------------------------------------------------------------------------
 -- Registry helpers

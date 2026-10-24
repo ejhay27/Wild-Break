@@ -12,6 +12,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 
+local Remotes = require(Shared.Networking.Remotes)
 local Logger = require(Shared.Utilities.Logger)
 local Performance = require(Shared.Config.PerformanceConfig)
 
