@@ -189,6 +189,9 @@ Limits.BossSpecial = {
 	LightSamuraiDetonationSeconds = 12,
 	LightSamuraiDetonationRadiusStuds = 260,
 	LightSamuraiDetonationDamage = 9000,
+	-- Grace period after the explosion for the server to apply the damage and
+	-- report who actually died, before the outcome is decided.
+	LightSamuraiSurvivorCheckSeconds = 3,
 
 	-- Parallax safeguards.
 	ParallaxMaxAbsentSeconds = 6,

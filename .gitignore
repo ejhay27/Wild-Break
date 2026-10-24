@@ -32,3 +32,8 @@ Thumbs.db
 
 # Luau toolchain built by tools/build_luau.sh (not committed)
 tools/bin/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo

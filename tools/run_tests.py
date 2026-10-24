@@ -277,6 +277,7 @@ def main() -> int:
         rel = os.path.relpath(path, WORK).replace(os.sep, "/")
         if rel.endswith(".luau"):
             rel = rel[: -len(".luau")]
+        lines.append("print('--- %s ---')" % rel)
         lines.append(f'local pass, err = pcall(require, "@{rel}")')
         lines.append("if not pass then ok = false; print('[FAIL] ' .. '%s' .. ': ' .. tostring(err)) end" % rel)
     lines.append("if ok then print('\\nALL SPECS PASSED') else print('\\nSPECS FAILED') end")

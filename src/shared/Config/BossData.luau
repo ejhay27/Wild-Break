@@ -1050,6 +1050,7 @@ B["parallax"] = boss({
 				}),
 			},
 			weakPoints = { { id = "wp_core", name = "Unstable Core", attachment = "CoreSocket", exposedPhases = { 1, 2, 3, 4 }, multiplier = 2.0, vulnerabilityWindowSeconds = 5 } },
+			timeoutSeconds = Limits.BossSpecial.ParallaxPhaseTimeoutSeconds,
 		},
 		{
 			index = 2,

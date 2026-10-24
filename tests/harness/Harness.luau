@@ -11,6 +11,11 @@ local state = {
 	passed = 0,
 	failed = 0,
 	failures = {} :: { string },
+	-- Cursor into `failures` and the counters as of the previous Report(), so
+	-- each spec reports only its own results.
+	reportedPassed = 0,
+	reportedFailed = 0,
+	failureCursor = 0,
 }
 
 local function fmt(value: any): string
@@ -98,6 +103,18 @@ function Test.lte(actual: number, maximum: number, message: string?)
 	end
 end
 
+function Test.gt(actual: number, maximum: number, message: string?)
+	if actual <= maximum then
+		error(string.format("%s: expected > %s, got %s", message or "gt", fmt(maximum), fmt(actual)), 2)
+	end
+end
+
+function Test.lt(actual: number, minimum: number, message: string?)
+	if actual >= minimum then
+		error(string.format("%s: expected < %s, got %s", message or "lt", fmt(minimum), fmt(actual)), 2)
+	end
+end
+
 function Test.contains(haystack: string, needle: string, message: string?)
 	if not string.find(haystack, needle, 1, true) then
 		error(string.format("%s: expected %q to contain %q", message or "contains", haystack, needle), 2)
@@ -118,13 +135,21 @@ function Test.noError(fn: () -> (), message: string?)
 	end
 end
 
--- Prints the summary. Returns true when every case passed.
+-- Prints this spec's own summary. Returns true when every case in THIS spec
+-- passed. Counts are deltas against the previous report because the Harness
+-- module is shared by every spec running in the same Lua VM.
 function Test.Report(): boolean
-	print(string.format("\n  passed: %d   failed: %d", state.passed, state.failed))
-	for _, message in state.failures do
-		print("  [FAIL] " .. message)
+	local passed = state.passed - state.reportedPassed
+	local failed = state.failed - state.reportedFailed
+	state.reportedPassed = state.passed
+	state.reportedFailed = state.failed
+
+	print(string.format("\n  passed: %d   failed: %d", passed, failed))
+	for index = state.failureCursor + 1, #state.failures do
+		print("  [FAIL] " .. state.failures[index])
 	end
-	return state.failed == 0
+	state.failureCursor = #state.failures
+	return failed == 0
 end
 
 -- Convenience: run and hard-fail the module so the runner reports it.

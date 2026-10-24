@@ -326,6 +326,9 @@ Enums.BossState = {
 	Transforming = "Transforming",
 	FinalDetonation = "FinalDetonation",
 	Defeated = "Defeated",
+	-- Resetting: the encounter ended without a defeat (wipe, abandon or
+	-- timeout) and the boss is waiting to respawn.
+	Resetting = "Resetting",
 	Cleanup = "Cleanup",
 	Respawning = "Respawning",
 }
@@ -567,6 +570,16 @@ Enums.GraphicsPreset = {
 	Ultra = "Ultra",
 }
 Enums.GraphicsPresetOrder = { "Auto", "VeryLow", "Low", "Medium", "High", "Ultra" }
+
+-- Runtime degradation ladder. Separate from GraphicsPreset: a preset is a
+-- player choice, a performance stage is measured and applied automatically.
+Enums.PerformanceStage = {
+	Ultra = "Ultra",
+	High = "High",
+	Medium = "Medium",
+	Low = "Low",
+	Minimal = "Minimal",
+}
 
 Enums.AudioEvent = {
 	Ambience = "Ambience",
