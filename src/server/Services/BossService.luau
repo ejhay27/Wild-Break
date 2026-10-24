@@ -21,18 +21,23 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Server = ServerScriptService:WaitForChild("Server")
 
 local Remotes = require(Shared.Networking.Remotes)
 local Enums = require(Shared.Constants.Enums)
 local Limits = require(Shared.Constants.Limits)
 local Logger = require(Shared.Utilities.Logger)
 local Bosses = require(Shared.Config.BossConfig)
+local Regions = require(Shared.Config.RegionConfig)
 local Loot = require(Shared.Config.LootConfig)
 local BossEncounter = require(Shared.Combat.BossEncounter)
 local StatusEffects = require(Shared.Combat.StatusEffects)
 local Rng = require(Shared.Utilities.Rng)
+local ActorFactory = require(Server:WaitForChild("World"):WaitForChild("ActorFactory"))
+local WorldBuilder = require(Server:WaitForChild("World"):WaitForChild("WorldBuilder"))
 
 local BossService = {
 	Name = "BossService",
@@ -124,13 +129,57 @@ function BossService.StartEncounter(bossId: string, context: { regionId: string?
 	return encounter
 end
 
+-- The authoritative position of a boss: the arena the world built for that
+-- region. Falls back to the configured region centre, then the origin. A
+-- damageable must never be registered with a nil position, because every
+-- distance calculation in the encounter reads from it.
+function BossService.ArenaPosition(regionId: string?): Vector3
+	if regionId and regionId ~= "" then
+		local arena = WorldBuilder.ArenaPosition(regionId)
+		if arena then
+			return arena
+		end
+		local centre = Regions.Center(regionId)
+		if centre then
+			return centre
+		end
+	end
+	return Vector3.zero
+end
+
+-- Moves an encounter's boss (and its damageable position) to a new spot.
+-- Used when the machine teleports the boss; the damageable registration is
+-- never dropped, so the boss stays hittable across the move.
+function BossService.SetBossPosition(id: string, position: Vector3)
+	local damageable = damageables[id]
+	if damageable then
+		damageable.position = position
+	end
+	local encounter = encounters[id]
+	local actor = encounter and encounter.actor
+	if actor and actor.Parent then
+		ActorFactory.MoveActor(actor, position)
+	end
+end
+
 -- Exposes the boss to CombatService so player weapons can resolve hits.
 function BossService._registerDamageable(id: string, encounter: any)
 	local def = encounter.def
+	local position = BossService.ArenaPosition(encounter.regionId)
+
+	-- Spawn the physical boss. Without an actor there is nothing to shoot at,
+	-- to anchor the fight to, or to telegraph from.
+	local actor = ActorFactory.BossActor(encounter.bossId, position)
+	if actor then
+		actor:SetAttribute("WBEncounterId", id)
+		actor:SetAttribute("WBRegionId", encounter.regionId or "")
+		encounter.actor = actor
+	end
+
 	local damageable = {
 		id = id,
 		kind = "Boss",
-		position = nil,
+		position = position,
 		defense = {
 			armor = def.armor,
 			resistances = def.resistances,
@@ -188,6 +237,10 @@ function BossService.ApplyDamage(encounterId: string, amount: number, source: Pl
 	local removed, _ = encounter:ApplyDamage(amount, source and participantId(source) or nil, damageType, isArea)
 	-- Events are buffered on the encounter and delivered by Tick, so nothing
 	-- is lost here.
+	if encounter.actor then
+		ActorFactory.SetBossHealth(encounter.actor, encounter.health, encounter.maxHealth)
+	end
+
 	if removed > 0 then
 		services.NetworkService.FireAll(Remotes.TargetHealthUpdated.name, {
 			targetId = encounterId,
@@ -195,6 +248,17 @@ function BossService.ApplyDamage(encounterId: string, amount: number, source: Pl
 			health = encounter.health,
 			maxHealth = encounter.maxHealth,
 		})
+
+		-- If the actor was destroyed by the world (streaming, a script, an
+		-- admin cleanup), respawn it so the boss is never an invisible target.
+		if encounter.actor and encounter.actor.Parent == nil and not encounter:IsTerminal() then
+			local replacement = ActorFactory.BossActor(encounter.bossId, BossService.ArenaPosition(encounter.regionId))
+			if replacement then
+				replacement:SetAttribute("WBEncounterId", encounterId)
+				encounter.actor = replacement
+				ActorFactory.SetBossHealth(replacement, encounter.health, encounter.maxHealth)
+			end
+		end
 	end
 end
 
@@ -221,21 +285,60 @@ function BossService.Tick()
 	end
 end
 
+-- Distances are measured by the server from real character positions.
+--
+-- Two rules matter here and both were previously broken:
+--   * a boss is positioned at its arena, so a distance is always definable;
+--   * a player the server cannot locate is marked as UNKNOWN, never as 0.
+--     Distance 0 means "standing on the boss", which would put that player
+--     inside every attack radius and, for the Light Samurai, inside the
+--     final detonation. An unresolved position must never imply that.
 function BossService._updateDistances(id: string, encounter: any)
 	local players = encounterPlayers[id]
 	if not players then
 		return
 	end
-	local position = damageables[id] and damageables[id].position
+
+	local damageable = damageables[id]
+	local position = damageable and damageable.position
 	if not position then
-		return
-	end
-	for _, player in players do
-		local playerPosition = services.WorldService and services.WorldService.PositionOf(player)
-		if playerPosition then
-			encounter:SetParticipantDistance(participantId(player), (playerPosition - position).Magnitude)
+		-- Recovery: if the damageable somehow lost its position, restore it
+		-- from the arena rather than leaving every participant unmeasured.
+		position = BossService.ArenaPosition(encounter.regionId)
+		if damageable then
+			damageable.position = position
 		end
 	end
+
+	for _, player in players do
+		local pid = participantId(player)
+		local playerPosition = services.WorldService and services.WorldService.PositionOf(player)
+		if playerPosition then
+			encounter:SetParticipantDistance(pid, (playerPosition - position).Magnitude)
+		else
+			-- No character, no position: flag the distance as unknown instead
+			-- of letting a stale or defaulted zero decide the outcome.
+			encounter:SetParticipantDistance(pid, nil)
+		end
+		-- A downed player is not an active survivor. This is what makes the
+		-- wipe/auto-defeat outcome match reality.
+		encounter:SetParticipantAlive(pid, BossService._isPlayerActive(player))
+	end
+end
+
+-- A player counts toward the survivor check only while they are standing.
+-- Downed, dead, or gone players do not.
+function BossService._isPlayerActive(player: Player): boolean
+	if player.Parent == nil then
+		return false
+	end
+	local state = services.PlayerService and services.PlayerService.Get(player)
+	if state then
+		return state.alive == true and state.downed ~= true
+	end
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	return humanoid ~= nil and humanoid.Health > 0
 end
 
 function BossService._handleEvents(id: string, encounter: any, events: { any })
@@ -289,7 +392,40 @@ function BossService._handleEvents(id: string, encounter: any, events: { any })
 				radius = event.radius,
 			})
 
-		elseif kind == "Vanished" or kind == "Reappeared" or kind == "GlitchToggled" then
+		elseif kind == "Vanished" then
+			-- Hide the actor, never destroy it: the damageable registration and
+			-- the encounter state survive the absence, so the boss is hittable
+			-- the instant it returns.
+			if encounter.actor then
+				ActorFactory.SetBossVisible(encounter.actor, false)
+			end
+			services.NetworkService.FireAll(Remotes.BossStateUpdated.name, encounter:Snapshot())
+
+		elseif kind == "Reappeared" then
+			if encounter.actor then
+				ActorFactory.SetBossVisible(encounter.actor, true)
+				-- Re-anchor to the arena so a vanished boss can never be left
+				-- outside the fight volume.
+				BossService.SetBossPosition(id, BossService.ArenaPosition(encounter.regionId))
+			end
+			BossService._refreshDamageable(id, encounter)
+			services.NetworkService.FireAll(Remotes.BossStateUpdated.name, encounter:Snapshot())
+
+		elseif kind == "GlitchToggled" then
+			-- The glitch is cosmetic and temporary; the actor stays present and
+			-- damageable throughout so it can never become invulnerable.
+			if encounter.actor then
+				ActorFactory.SetBossVisible(encounter.actor, true)
+			end
+			services.NetworkService.FireAll(Remotes.BossStateUpdated.name, encounter:Snapshot())
+
+		elseif kind == "Transformed" or kind == "CopiesSpawned" or kind == "ArenaFractured" then
+			-- Form changes never remove the registered damageable.
+			if encounter.actor then
+				ActorFactory.SetBossVisible(encounter.actor, true)
+				BossService.SetBossPosition(id, BossService.ArenaPosition(encounter.regionId))
+			end
+			BossService._refreshDamageable(id, encounter)
 			services.NetworkService.FireAll(Remotes.BossStateUpdated.name, encounter:Snapshot())
 
 		elseif kind == "ShieldAbsorbed" or kind == "PhaseStallDecay" then
@@ -401,7 +537,14 @@ end
 -- ---------------------------------------------------------------------------
 
 function BossService._cleanup(id: string, encounter: any)
+	-- Defeat stops everything: the damageable is unregistered so no further
+	-- attack or damage can resolve, and the actor is removed from the world.
 	BossService._unregisterDamageable(id)
+
+	if encounter.actor then
+		ActorFactory.DestroyActor(encounter.actor)
+		encounter.actor = nil
+	end
 
 	for _, player in encounterPlayers[id] or {} do
 		local state = services.PlayerService.Get(player)
@@ -445,6 +588,17 @@ function BossService.EncounterOf(player: Player)
 	return id and encounters[id] or nil
 end
 
+-- The live encounter for a boss, if any. Used to avoid starting a second
+-- fight against a boss that is already engaged.
+function BossService.ActiveEncounterForBoss(bossId: string): any?
+	for _, encounter in encounters do
+		if encounter.bossId == bossId and not encounter:IsTerminal() then
+			return encounter
+		end
+	end
+	return nil
+end
+
 function BossService.ActiveEncounters(): { any }
 	local out = {}
 	for _, encounter in encounters do
@@ -455,12 +609,30 @@ function BossService.ActiveEncounters(): { any }
 	return out
 end
 
+-- Starts the world boss of a region. Called from real gameplay: entering a
+-- region's boss arena wakes its boss (see WorldService). StartEncounter is
+-- itself idempotent -- it returns the live encounter for a boss that is
+-- already fighting -- so a crowded arena cannot spawn a second boss.
 function BossService.StartWorldBoss(regionId: string)
-	local boss = Bosses.WorldBossForRegion(regionId)
-	if not boss then
+	if not regionId or regionId == "" then
 		return nil
 	end
-	return BossService.StartEncounter(boss.id, { regionId = regionId, kind = "World" })
+	local boss = Bosses.WorldBossForRegion(regionId)
+	if not boss then
+		Logger.Debug("BossService", string.format("region %s has no world boss", regionId))
+		return nil
+	end
+	if Regions.IsHub(regionId) then
+		return nil
+	end
+	local encounter = BossService.StartEncounter(boss.id, { regionId = regionId, kind = "World" })
+	if encounter then
+		-- Anchor the boss to the arena the world actually built.
+		local position = BossService.ArenaPosition(regionId)
+		damageables[encounter.id].position = position
+		BossService.SetBossPosition(encounter.id, position)
+	end
+	return encounter
 end
 
 function BossService.StartDungeonBoss(dungeonId: string, stageIndex: number)
@@ -476,10 +648,61 @@ function BossService.StartDungeonBoss(dungeonId: string, stageIndex: number)
 	return BossService.StartEncounter(stage.bossId, { dungeonId = dungeonId, kind = "Dungeon" })
 end
 
+-- ---------------------------------------------------------------------------
+-- Survival synchronisation
+--
+-- The encounter's survivor count has to match what actually happened to the
+-- players. Downed is not alive: a player on the ground does not count toward
+-- "the raid survived the detonation", which is what makes the Light Samurai
+-- resolve correctly instead of hanging in an unwinnable state.
+-- ---------------------------------------------------------------------------
+
+function BossService._syncParticipant(player: Player, alive: boolean)
+	local id = playerToEncounter[player]
+	if not id then
+		return
+	end
+	local encounter = encounters[id]
+	if not encounter or encounter:IsTerminal() then
+		return
+	end
+	local pid = participantId(player)
+	if encounter.participants[pid] then
+		encounter:SetParticipantAlive(pid, alive)
+	end
+end
+
+function BossService.OnPlayerDowned(player: Player)
+	BossService._syncParticipant(player, false)
+end
+
+function BossService.OnPlayerRevived(player: Player)
+	BossService._syncParticipant(player, true)
+end
+
+-- A respawned player is alive again but is back at the hub, far outside the
+-- arena. Their distance is refreshed on the next tick; if they stay away the
+-- leash will drop them from the encounter.
+function BossService.OnPlayerRespawned(player: Player)
+	local id = playerToEncounter[player]
+	if id and encounters[id] and not encounters[id]:IsTerminal() then
+		local pid = participantId(player)
+		encounters[id]:SetParticipantAlive(pid, true)
+		encounters[id]:SetParticipantDistance(pid, BossEncounter.UnknownDistance())
+	end
+end
+
 function BossService.OnPlayerRemoving(player: Player)
 	local id = playerToEncounter[player]
 	if id and encounters[id] then
 		encounters[id]:SetParticipantAlive(participantId(player), false)
+		local players = encounterPlayers[id]
+		if players then
+			local index = table.find(players, player)
+			if index then
+				table.remove(players, index)
+			end
+		end
 	end
 	playerToEncounter[player] = nil
 end

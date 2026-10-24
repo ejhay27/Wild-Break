@@ -587,6 +587,106 @@ Test.describe("Light Region Samurai / Aurion", function()
 		Test.truthy(late.detonationRemaining ~= nil, "no countdown for the HUD")
 	end)
 end)
+-- ===========================================================================
+-- Participant distance integrity
+--
+-- A participant's distance must be MEASURED. It must never default to zero,
+-- because zero means "standing on top of the boss", which silently puts that
+-- player inside every attack radius -- including the Light Samurai's final
+-- detonation. These tests lock that rule down.
+-- ===========================================================================
+
+Test.describe("Participant distance integrity", function()
+	Test.it("a participant added without a distance is not assumed to be at the boss", function()
+		local encounter = newEncounter("light_samurai")
+		if not encounter then
+			return
+		end
+		encounter:AddParticipant("p1")
+		Test.gt(
+			encounter.participants["p1"].distance,
+			Limits.BossSpecial.LightSamuraiDetonationRadiusStuds,
+			"a freshly added participant must start outside the blast radius, not on top of the boss"
+		)
+		Test.falsy(encounter:HasKnownPosition("p1"), "an unmeasured participant must be flagged as unknown")
+	end)
+
+	Test.it("an unmeasured participant is not hit by the detonation", function()
+		local encounter = newEncounter("light_samurai")
+		if not encounter then
+			return
+		end
+		-- p1 has never had a position resolved by the server.
+		encounter:AddParticipant("p1")
+		encounter:AddParticipant("measured", Limits.BossSpecial.LightSamuraiDetonationRadiusStuds + 500)
+
+		encounter.health = encounter.maxHealth * 0.04
+		encounter:_evaluatePhase({})
+		local events = run(encounter, Limits.BossSpecial.LightSamuraiDetonationSeconds + 6)
+
+		local resolved = findEvent(events, "DetonationResolved")
+		Test.truthy(resolved, "the explosion never resolved")
+		if resolved then
+			Test.eq(resolved.targetCount, 0, "a player with no measured position must not be assumed to be in the blast")
+		end
+		-- Everyone survived, so the boss still falls over. The encounter must
+		-- not hang just because nobody was caught in the radius.
+		Test.truthy(encounter:IsDefeated(), "the boss did not resolve after the detonation")
+	end)
+
+	Test.it("losing the position measurement marks the distance unknown again", function()
+		local encounter = newEncounter("light_samurai")
+		if not encounter then
+			return
+		end
+		encounter:AddParticipant("p1", 10)
+		Test.truthy(encounter:HasKnownPosition("p1"), "a measured participant should be known")
+
+		-- The server can no longer locate the character (streamed out, respawning).
+		encounter:SetParticipantDistance("p1", nil)
+		Test.falsy(encounter:HasKnownPosition("p1"), "the participant should be unknown again")
+		Test.gt(
+			encounter.participants["p1"].distance,
+			Limits.BossSpecial.LightSamuraiDetonationRadiusStuds,
+			"an unknown distance must be far away, never zero"
+		)
+	end)
+
+	Test.it("a downed player is not an active survivor", function()
+		local encounter = newEncounter("light_samurai")
+		if not encounter then
+			return
+		end
+		encounter:AddParticipant("p1", 10)
+		encounter:AddParticipant("p2", 10)
+		Test.eq(encounter:AliveParticipantCount(), 2, "both players start alive")
+
+		-- Downed is not alive: the survivor check must not count them.
+		encounter:SetParticipantAlive("p1", false)
+		Test.eq(encounter:AliveParticipantCount(), 1, "a downed player must not count as a survivor")
+
+		encounter:SetParticipantAlive("p2", false)
+		Test.eq(encounter:AliveParticipantCount(), 0, "no survivors should be reported after a total wipe")
+	end)
+
+	Test.it("a total wipe after the detonation terminates the encounter", function()
+		local encounter = newEncounter("light_samurai")
+		if not encounter then
+			return
+		end
+		encounter:AddParticipant("p1", 10)
+		encounter:SetParticipantAlive("p1", false)
+
+		encounter.health = encounter.maxHealth * 0.04
+		encounter:_evaluatePhase({})
+		local events = run(encounter, Limits.BossSpecial.LightSamuraiDetonationSeconds + 6)
+
+		local wiped = findEvent(events, "EncounterWiped")
+		Test.truthy(wiped, "a wipe must emit EncounterWiped so the boss is not left hanging")
+		Test.truthy(encounter:IsTerminal(), "the encounter must terminate on a wipe")
+	end)
+end)
+
 
 -- ===========================================================================
 -- Cross-boss invariants

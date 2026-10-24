@@ -33,6 +33,7 @@ local PlayerService = require(Services.PlayerService)
 local InventoryService = require(Services.InventoryService)
 local CombatService = require(Services.CombatService)
 local ResourceService = require(Services.ResourceService)
+local SpawnService = require(Services.SpawnService)
 local WorldService = require(Services.WorldService)
 local BeastService = require(Services.BeastService)
 local BossService = require(Services.BossService)
@@ -57,6 +58,7 @@ local ServiceList = {
 	InventoryService,
 	CombatService,
 	ResourceService,
+	SpawnService,
 	WorldService,
 	BeastService,
 	BossService,
@@ -106,8 +108,12 @@ for _, service in ServiceList do
 end
 
 -- 3. Player lifecycle
+--
+-- PlayerService connects its own PlayerAdded handler in Start, so it is not
+-- called here: calling it twice loaded every profile twice and built two
+-- runtime states for the same player. SpawnService also self-registers, so
+-- only the services that rely on this entry point are listed.
 Players.PlayerAdded:Connect(function(player)
-	PlayerService.OnPlayerAdded(player)
 	InventoryService.OnPlayerAdded(player)
 	CombatService.OnPlayerAdded(player)
 end)
@@ -125,7 +131,6 @@ end)
 -- Players who joined before the server finished loading.
 for _, player in Players:GetPlayers() do
 	task.spawn(function()
-		PlayerService.OnPlayerAdded(player)
 		InventoryService.OnPlayerAdded(player)
 		CombatService.OnPlayerAdded(player)
 	end)
@@ -141,6 +146,8 @@ RunService.Heartbeat:Connect(function(delta)
 		PlayerService.Tick(step)
 		CombatService.Tick(step)
 		CompanionService.Tick(step)
+		SpawnService.Tick(step)
+		HazardService.Tick(step)
 	end
 end)
 

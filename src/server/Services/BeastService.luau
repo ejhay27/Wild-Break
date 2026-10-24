@@ -12,7 +12,9 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Server = ServerScriptService:WaitForChild("Server")
 
 local Remotes = require(Shared.Networking.Remotes)
 local Enums = require(Shared.Constants.Enums)
@@ -23,6 +25,8 @@ local Regions = require(Shared.Config.RegionConfig)
 local Loot = require(Shared.Config.LootConfig)
 local StatusEffects = require(Shared.Combat.StatusEffects)
 local Rng = require(Shared.Utilities.Rng)
+local ActorFactory = require(Server:WaitForChild("World"):WaitForChild("ActorFactory"))
+local WorldBuilder = require(Server:WaitForChild("World"):WaitForChild("WorldBuilder"))
 
 local BeastService = {
 	Name = "BeastService",
@@ -109,6 +113,21 @@ function BeastService.Populate()
 	end
 end
 
+-- Real spawn spots for a region. The world builder measured these inside the
+-- region's landmass; without one a beast has no position, cannot be found by
+-- NearestPlayerTo, and can never aggro or be attacked.
+function BeastService._spotFor(regionId: string): Vector3
+	local spots = WorldBuilder.BeastSpots(regionId)
+	if #spots > 0 then
+		return spots[rng:NextInteger(1, #spots)]
+	end
+	local centre = Regions.Center(regionId)
+	local radius = (Regions:Get(regionId) and Regions:Get(regionId).radius) or 800
+	local angle = rng:Next() * math.pi * 2
+	local distance = math.sqrt(rng:Next()) * radius * 0.8
+	return Vector3.new(centre.X + math.cos(angle) * distance, centre.Y, centre.Z + math.sin(angle) * distance)
+end
+
 function BeastService.Spawn(speciesId: string, regionId: string, position: Vector3?): BeastInstance?
 	local species = Beasts:Get(speciesId)
 	if not species then
@@ -118,6 +137,12 @@ function BeastService.Spawn(speciesId: string, regionId: string, position: Vecto
 	local id = string.format("beast_%d", nextId)
 	local level = math.clamp(Regions.Threat(regionId) or 1, 1, 200)
 	local health = (species.baseHealth or 100) * (1 + (level - 1) * 0.08)
+
+	-- A beast always spawns somewhere real. Previously the population loop
+	-- called Spawn with no position, so every beast was nowhere at all.
+	if not position then
+		position = BeastService._spotFor(regionId)
+	end
 
 	local instance: BeastInstance = {
 		id = id,
@@ -139,7 +164,14 @@ function BeastService.Spawn(speciesId: string, regionId: string, position: Vecto
 	instances[id] = instance
 	table.insert(byRegion[regionId], id)
 
-	services.CombatService.RegisterDamageable(id, {
+	-- The physical creature, so there is something to see and to hit.
+	instance.actor = ActorFactory.BeastActor(speciesId, position, level)
+	if instance.actor then
+		instance.actor:SetAttribute("WBBeastId", id)
+		instance.actor:SetAttribute("WBRegionId", regionId)
+	end
+
+	local damageable = {
 		id = id,
 		kind = "Beast",
 		position = position,
@@ -155,7 +187,9 @@ function BeastService.Spawn(speciesId: string, regionId: string, position: Vecto
 		applyDamage = function(amount: number, source: Player?, outcome: any)
 			BeastService.ApplyDamage(id, amount, source, outcome)
 		end,
-	})
+	}
+	instance.damageable = damageable
+	services.CombatService.RegisterDamageable(id, damageable)
 
 	services.NetworkService.FireAll(Remotes.BeastStateUpdated.name, {
 		id = id,
@@ -197,6 +231,10 @@ end
 function BeastService.Kill(instance: BeastInstance, killer: Player?)
 	local species = Beasts:Get(instance.speciesId)
 	services.CombatService.UnregisterDamageable(instance.id)
+	if instance.actor then
+		ActorFactory.DestroyActor(instance.actor)
+		instance.actor = nil
+	end
 
 	-- Drops go to everyone who contributed, scaled by contribution.
 	for player, damage in instance.damageByPlayer do
@@ -264,6 +302,9 @@ function BeastService.Tick()
 				instance.targetPlayer = nearest
 			end
 		elseif instance.state == Enums.BehaviourState.Attack then
+			-- Advance on the target so the fight closes distance instead of
+			-- the beast standing still and hitting from wherever it spawned.
+			BeastService._advance(instance, species, clock)
 			local target = instance.targetPlayer
 			if not target or not services.PlayerService.Get(target) then
 				instance.state = Enums.BehaviourState.Idle
@@ -275,6 +316,41 @@ function BeastService.Tick()
 				BeastService.Attack(instance, target, species)
 			end
 		end
+	end
+end
+
+-- Moves a beast toward its target and keeps the damageable's position in
+-- sync, so hits keep resolving as the creature moves.
+function BeastService._advance(instance: BeastInstance, species: any, clock: number)
+	local target = instance.targetPlayer
+	if not target or not instance.position then
+		return
+	end
+	local targetPosition = services.WorldService and services.WorldService.PositionOf(target)
+	if not targetPosition then
+		return
+	end
+	local delta = targetPosition - instance.position
+	local distance = delta.Magnitude
+	local attackRange = species.attackRange or 12
+	if distance <= attackRange then
+		return
+	end
+
+	local speed = species.moveSpeed or 14
+	local step = math.min(distance - attackRange, speed * (clock - (instance.lastMoveAt or clock)))
+	if step <= 0 then
+		return
+	end
+	instance.lastMoveAt = clock
+	instance.position = instance.position + delta.Unit * step
+	if instance.actor then
+		ActorFactory.MoveActor(instance.actor, instance.position)
+	end
+	-- The registered damageable moves with the beast, otherwise range checks
+	-- would still be aimed at the spot it spawned on.
+	if instance.damageable then
+		instance.damageable.position = instance.position
 	end
 end
 

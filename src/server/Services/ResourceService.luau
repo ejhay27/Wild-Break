@@ -12,8 +12,10 @@
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Server = ServerScriptService:WaitForChild("Server")
 
 local Remotes = require(Shared.Networking.Remotes)
 local Enums = require(Shared.Constants.Enums)
@@ -23,6 +25,8 @@ local ResourceConfig = require(Shared.Config.ResourceConfig)
 local ResourceState = require(Shared.Resources.ResourceState)
 local RegionConfig = require(Shared.Config.RegionConfig)
 local Rng = require(Shared.Utilities.Rng)
+local ActorFactory = require(Server:WaitForChild("World"):WaitForChild("ActorFactory"))
+local WorldBuilder = require(Server:WaitForChild("World"):WaitForChild("WorldBuilder"))
 
 local ResourceService = {
 	Name = "ResourceService",
@@ -67,24 +71,67 @@ function ResourceService.Start(svc: any)
 	_ = RunService
 end
 
--- Populates the world model from the region configuration.
+-- Fallback scatter used only if the world has not been generated (for
+-- example when the service is driven from a headless test).
+local function fallbackSpots(region: any, wanted: number): { Vector3 }
+	local out = {}
+	local centre = RegionConfig.Center(region.id)
+	for index = 1, wanted do
+		local angle = (index / math.max(1, wanted)) * math.pi * 2
+		local distance = (region.radius or 800) * (0.25 + 0.6 * ((index % 7) / 7))
+		table.insert(
+			out,
+			Vector3.new(centre.X + math.cos(angle) * distance, centre.Y, centre.Z + math.sin(angle) * distance)
+		)
+	end
+	return out
+end
+
+-- Populates the world with real, positioned, physical nodes.
+--
+-- Previously this only built an in-memory list: nodes had no position and no
+-- instance, so there was nothing in the world to walk up to and gather. Each
+-- node now gets a measured position inside its region and a physical actor.
 function ResourceService.BuildWorld()
 	nodes = {}
 	byRegion = {}
 	for _, region in RegionConfig:List() do
 		byRegion[region.id] = {}
+
+		local wanted = 0
+		for _, count in region.resourceNodes do
+			wanted += count
+		end
+		-- Density stays sane and inside the part budget.
+		wanted = math.min(wanted, Limits.Performance.MaxActiveNodesPerRegion or 400)
+
+		local spots = WorldBuilder.NodeSpots(region.id)
+		if #spots == 0 then
+			spots = fallbackSpots(region, wanted)
+		end
+		if #spots == 0 then
+			continue
+		end
+
 		for nodeId, count in region.resourceNodes do
 			local def = ResourceConfig:Get(nodeId)
 			if not def then
 				Logger.Warn("ResourceService", string.format("region %s references unknown node %s", region.id, tostring(nodeId)))
 				continue
 			end
-			-- Population is capped by the region radius so density stays sane.
 			local population = math.min(count, Limits.Performance.MaxActiveNodesPerRegion or 400)
-			for _ = 1, population do
+			for index = 1, population do
 				local instanceId = newInstanceId(nodeId)
-				nodes[instanceId] = ResourceState.New(nodeId, instanceId)
-				nodes[instanceId].regionId = region.id
+				local node = ResourceState.New(nodeId, instanceId)
+				node.regionId = region.id
+
+				-- Positions are measured, not invented: the world builder handed
+				-- back real spots inside this region's landmass.
+				local position = spots[((index - 1) % #spots) + 1]
+				node.position = position
+				node.actor = ActorFactory.ResourceNode(nodeId, position)
+
+				nodes[instanceId] = node
 				table.insert(byRegion[region.id], instanceId)
 			end
 		end
@@ -100,6 +147,10 @@ function ResourceService.Tick()
 	local now = os.clock()
 	local respawned = ResourceState.Update(nodes, now)
 	for _, node in respawned do
+		-- The node comes back physically, not just in the data model.
+		if node.actor then
+			ActorFactory.SetNodeHarvested(node.actor, false)
+		end
 		services.NetworkService.FireAll(Remotes.ResourceStateChanged.name, {
 			instanceId = node.instanceId,
 			nodeId = node.nodeId,
@@ -121,6 +172,19 @@ function ResourceService.RequestHarvest(player: Player, instanceId: string, delt
 	if not node then
 		return false
 	end
+	-- Anti-exploit: the player must actually be standing at the node. The
+	-- server measures this from the character; a client cannot harvest from
+	-- across the map by naming an instance id.
+	if node.position then
+		local playerPosition = services.WorldService and services.WorldService.PositionOf(player)
+		if not playerPosition then
+			return false
+		end
+		if (playerPosition - node.position).Magnitude > (Limits.Resource.HarvestRangeStuds or 14) then
+			return false
+		end
+	end
+
 	if not ResourceState.IsAvailable(node, os.clock()) then
 		services.NetworkService.Fire(player, Remotes.HarvestProgress.name, {
 			instanceId = instanceId,
@@ -173,6 +237,10 @@ function ResourceService.RequestHarvest(player: Player, instanceId: string, delt
 		respawnAt = outcome.respawnAt,
 		respawnSeconds = ResourceConfig.RespawnSeconds(node.nodeId),
 	})
+	-- The node is consumed visually as well as in the data model.
+	if node.actor then
+		ActorFactory.SetNodeHarvested(node.actor, true)
+	end
 	services.NetworkService.FireAll(Remotes.ResourceStateChanged.name, {
 		instanceId = instanceId,
 		nodeId = node.nodeId,
@@ -229,6 +297,9 @@ function ResourceService.AdminRespawn(instanceId: string): boolean
 	node.respawnAt = nil
 	node.depletedAt = nil
 	node.progress = 0
+	if node.actor then
+		ActorFactory.SetNodeHarvested(node.actor, false)
+	end
 	services.NetworkService.FireAll(Remotes.ResourceStateChanged.name, {
 		instanceId = instanceId,
 		nodeId = node.nodeId,

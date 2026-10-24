@@ -44,6 +44,11 @@ export type Participant = {
 	damage: number,
 	alive: boolean,
 	distance: number,
+	-- False until the server has resolved a real position for this player.
+	-- An unknown distance is never treated as zero: a participant whose
+	-- position is unknown cannot be silently assumed to be standing on top
+	-- of the boss (which would put them inside every blast radius).
+	positionKnown: boolean,
 	joinedAt: number,
 }
 
@@ -174,6 +179,13 @@ end
 -- Participants
 -- ---------------------------------------------------------------------------
 
+-- The distance a participant starts at when the server has not yet located
+-- them. It is deliberately far away rather than zero: a fresh participant
+-- must not be considered to be standing inside every blast radius.
+function BossEncounter.UnknownDistance(): number
+	return Limits.Boss.LeashRadiusStuds * 4
+end
+
 function BossEncounter:AddParticipant(id: string, distance: number?)
 	if self.participants[id] then
 		return
@@ -182,7 +194,8 @@ function BossEncounter:AddParticipant(id: string, distance: number?)
 		id = id,
 		damage = 0,
 		alive = true,
-		distance = distance or 0,
+		distance = distance or BossEncounter.UnknownDistance(),
+		positionKnown = distance ~= nil,
 		joinedAt = self.time,
 	}
 end
@@ -198,15 +211,31 @@ function BossEncounter:SetParticipantAlive(id: string, alive: boolean)
 	end
 end
 
-function BossEncounter:SetParticipantDistance(id: string, distance: number)
+-- Distances are always measured by the server from real character
+-- positions. They are clamped here so an absurd value can never smuggle a
+-- player out of a blast. A nil distance means "the server could not locate
+-- this player", which is stored as far away and flagged as unknown rather
+-- than defaulting to zero.
+function BossEncounter:SetParticipantDistance(id: string, distance: number?)
 	local participant = self.participants[id]
 	if not participant then
 		return
 	end
-	-- Distances come from the client's own position report, so they are
-	-- clamped here: an absurd value can never smuggle a player out of, or
-	-- into, an explosion.
-	participant.distance = math.clamp(distance or 0, 0, Limits.Boss.LeashRadiusStuds * 4)
+	local ceiling = BossEncounter.UnknownDistance()
+	if distance == nil then
+		participant.distance = ceiling
+		participant.positionKnown = false
+		return
+	end
+	participant.distance = math.clamp(distance, 0, ceiling)
+	participant.positionKnown = true
+end
+
+-- True when the server has a real position for this participant, so the
+-- blast maths can trust their distance.
+function BossEncounter:HasKnownPosition(id: string): boolean
+	local participant = self.participants[id]
+	return participant ~= nil and participant.positionKnown
 end
 
 function BossEncounter:ParticipantCount(): number
@@ -592,7 +621,10 @@ function BossEncounter:_resolveDetonation(events: { Event })
 
 	local targets: { string } = {}
 	for id, participant in self.participants do
-		if participant.alive and participant.distance <= radius then
+		-- A participant whose position the server could not resolve is not
+		-- silently assumed to be at distance 0 (inside the blast); they are
+		-- simply not hit. Distance is measured, never defaulted.
+		if participant.alive and participant.positionKnown and participant.distance <= radius then
 			table.insert(targets, id)
 		end
 	end

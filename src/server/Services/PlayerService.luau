@@ -230,6 +230,11 @@ function PlayerService.Down(player: Player, source: string?)
 	state.downedUntil = now() + Deployment.Respawn.downedBleedOutSeconds
 	state.profile.deaths += 1
 	Logger.Info("PlayerService", string.format("%s went down (%s)", tostring(player.Name), tostring(source)))
+	-- Any live boss encounter has to learn about this immediately: a downed
+	-- player is not an active participant.
+	if services.BossService and services.BossService.OnPlayerDowned then
+		services.BossService.OnPlayerDowned(player)
+	end
 	services.NetworkService.Fire(player, Remotes.CombatStateUpdated.name, { state = Enums.CombatState.Downed, source = source })
 end
 
@@ -242,6 +247,9 @@ function PlayerService.Revive(player: Player, by: Player?): boolean
 	state.alive = true
 	state.downedUntil = nil
 	state.health = math.max(1, math.floor(state.maxHealth * 0.35))
+	if services.BossService and services.BossService.OnPlayerRevived then
+		services.BossService.OnPlayerRevived(player)
+	end
 	services.NetworkService.Fire(player, Remotes.CombatStateUpdated.name, { state = Enums.CombatState.Alive, revivedBy = by and by.Name or nil })
 	services.NetworkService.Fire(player, Remotes.PlayerStateUpdated.name, PlayerService.Snapshot(player))
 	return true
@@ -264,6 +272,17 @@ function PlayerService.Respawn(player: Player)
 	state.deploymentPhase = Enums.DeployPhase.Idle
 	state.statusEffects = require(Shared.Combat.StatusEffects).New()
 	state.cooldowns = {}
+	if services.BossService and services.BossService.OnPlayerRespawned then
+		services.BossService.OnPlayerRespawned(player)
+	end
+	if services.WorldService and services.WorldService.ResetPosition then
+		services.WorldService.ResetPosition(player)
+	end
+	-- Respawning has to put the character back in the world, not just reset
+	-- the numbers.
+	if services.SpawnService and services.SpawnService.RespawnAtHub then
+		services.SpawnService.RespawnAtHub(player)
+	end
 	services.NetworkService.Fire(player, Remotes.PlayerStateUpdated.name, PlayerService.Snapshot(player))
 end
 

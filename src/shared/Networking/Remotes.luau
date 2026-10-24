@@ -82,6 +82,8 @@ Remotes.PlayerStateUpdated = define(
 )
 
 Remotes.RequestProfileData = define("WB_RequestProfileData", "Function", "ClientToServer", "Requests the full profile snapshot for the local player.", {
+	-- Takes no arguments; declared explicitly so any payload at all is refused.
+	args = {},
 	rateLimit = 1,
 	burst = 2,
 })
@@ -307,6 +309,7 @@ Remotes.RequestCraft = define("WB_RequestCraft", "Function", "ClientToServer", "
 })
 Remotes.CraftingResult = define("WB_CraftingResult", "Event", "ServerToClient", "Craft success/failure and inventory delta.")
 Remotes.RequestRecipes = define("WB_RequestRecipes", "Function", "ClientToServer", "Returns known recipes and their material requirements.", {
+	args = {},
 	rateLimit = 1,
 	burst = 2,
 })
@@ -369,6 +372,7 @@ Remotes.DungeonStateUpdated = define("WB_DungeonStateUpdated", "Event", "ServerT
 
 Remotes.WorldEventUpdated = define("WB_WorldEventUpdated", "Event", "ServerToClient", "World event announcements, stages and results.")
 Remotes.RequestWorldEventInfo = define("WB_RequestWorldEventInfo", "Function", "ClientToServer", "Returns active world event data.", {
+	args = {},
 	rateLimit = 1,
 	burst = 2,
 })
@@ -499,6 +503,7 @@ Remotes.UpdateHudLayout = define("WB_UpdateHudLayout", "Function", "ClientToServ
 	burst = 5,
 })
 Remotes.ClientReady = define("WB_ClientReady", "Event", "ClientToServer", "Client signals it has finished loading and is ready to receive state.", {
+	args = {},
 	rateLimit = 1,
 	burst = 2,
 })

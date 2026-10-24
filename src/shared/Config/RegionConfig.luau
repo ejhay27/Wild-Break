@@ -97,7 +97,6 @@ local entries: { [string]: RegionDef } = {
 		id = "VerdantReach",
 		displayName = "Verdant Reach",
 		element = Enums.Element.Forest,
-		isStartingRegion = true,
 		threatLevel = 1,
 		recommendedLevel = 1,
 		center = { 0, 40, 0 },

@@ -74,6 +74,20 @@ Test.describe("Remote registry", function()
 		end
 	end)
 
+	Test.it("client-to-server remotes declare an argument schema", function()
+		-- Without a schema an inbound call is only checked for argument COUNT,
+		-- so a client could send anything it liked to a remote that expects
+		-- nothing. Every inbound channel declares its payload, even if empty.
+		for _, definition in Remotes.All() do
+			if definition.direction ~= "ServerToClient" then
+				Test.truthy(
+					definition.args ~= nil,
+					string.format("%s has no argument schema", tostring(definition.name))
+				)
+			end
+		end
+	end)
+
 	Test.it("admin remotes declare an admin level", function()
 		for _, definition in Remotes.All() do
 			if string.find(definition.name, "Admin") then
